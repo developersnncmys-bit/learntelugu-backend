@@ -6,11 +6,14 @@ const router = express.Router();
 let cachedTransporter = null;
 const getTransporter = () => {
   if (cachedTransporter) return cachedTransporter;
+  const port = Number(process.env.SMTP_PORT) || 465;
   cachedTransporter = nodemailer.createTransport({
-    service: "gmail",
+    host: process.env.SMTP_HOST || "smtp.hostinger.com",
+    port,
+    secure: port === 465,
     auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD,
     },
   });
   return cachedTransporter;
@@ -60,7 +63,7 @@ router.post("/", async (req, res) => {
       `Message:\n${message || "(no message)"}\n`;
 
     await getTransporter().sendMail({
-      from: `"Learn Telugu Now" <${process.env.GMAIL_USER}>`,
+      from: `"Learn Telugu Now" <${process.env.SMTP_USER}>`,
       to: recipient,
       replyTo: email,
       subject: `New contact form message from ${name}`,
