@@ -6,11 +6,11 @@ const router = express.Router();
 let cachedTransporter = null;
 const getTransporter = () => {
   if (cachedTransporter) return cachedTransporter;
-  const port = Number(process.env.SMTP_PORT) || 465;
+  const port = Number(process.env.SMTP_PORT) || 587;
   cachedTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.hostinger.com",
     port,
-    secure: port === 465,
+    secure: port === 587,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
@@ -30,9 +30,43 @@ const escapeHtml = (str = "") =>
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const isValidPhone = (phone) => /^\d{10}$/.test(String(phone).replace(/\s/g, ""));
 
+const FORM_META = {
+  demo: { heading: "New Demo Booking", subjectPrefix: "New demo booking from" },
+  instructor: { heading: "New Instructor Application", subjectPrefix: "New instructor application from" },
+  contact: { heading: "New Contact Form Submission", subjectPrefix: "New contact form message from" },
+};
+
+const EXTRA_FIELDS = {
+  demo: [
+    ["course", "Course"],
+    ["country", "Country"],
+    ["demoDate", "Demo Date"],
+    ["demoTime", "Demo Time"],
+    ["timeZone", "Time Zone"],
+    ["referralSource", "Referral Source"],
+  ],
+  instructor: [
+    ["qualification", "Qualification"],
+    ["subjects", "Subjects"],
+    ["experience", "Teaching Experience"],
+    ["onlineTeaching", "Online Teaching"],
+    ["languages", "Languages"],
+    ["preferredTime", "Preferred Time"],
+    ["currentLocation", "Current Location"],
+  ],
+};
+
 router.post("/", async (req, res) => {
   try {
-    const { name, email, countryCode = "+91", phone, message = "" } = req.body || {};
+    const body = req.body || {};
+    const {
+      name,
+      email,
+      countryCode = "+91",
+      phone,
+      message = "",
+      formType = "contact",
+    } = body;
 
     if (!name || !String(name).trim() || /\d/.test(name)) {
       return res.status(400).json({ success: false, message: "Invalid name" });
@@ -44,29 +78,42 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid phone number" });
     }
 
-    const recipient = process.env.RECIPIENT_EMAIL || "learntelugunowofficial@gmail.com";
+    const meta = FORM_META[formType] || FORM_META.contact;
+    const extras = (EXTRA_FIELDS[formType] || [])
+      .map(([key, label]) => [label, body[key]])
+      .filter(([, value]) => value && String(value).trim());
 
+    const rows = [
+      ["Name", name],
+      ["Email", email],
+      ["Phone", `${countryCode} ${phone}`],
+      ...extras,
+    ];
+
+    const htmlRows = rows
+      .map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`)
+      .join("\n      ");
+    const messageHtml = escapeHtml(message).replace(/\n/g, "<br/>") || "<em>(no message)</em>";
     const html = `
-      <h2>New Contact Form Submission</h2>
-      <p><strong>Name:</strong> ${escapeHtml(name)}</p>
-      <p><strong>Email:</strong> ${escapeHtml(email)}</p>
-      <p><strong>Phone:</strong> ${escapeHtml(countryCode)} ${escapeHtml(phone)}</p>
+      <h2>${escapeHtml(meta.heading)}</h2>
+      ${htmlRows}
       <p><strong>Message:</strong></p>
-      <p>${escapeHtml(message).replace(/\n/g, "<br/>") || "<em>(no message)</em>"}</p>
+      <p>${messageHtml}</p>
     `;
 
+    const textRows = rows.map(([label, value]) => `${label}: ${value}`).join("\n");
     const text =
-      `New Contact Form Submission\n\n` +
-      `Name: ${name}\n` +
-      `Email: ${email}\n` +
-      `Phone: ${countryCode} ${phone}\n` +
+      `${meta.heading}\n\n` +
+      `${textRows}\n` +
       `Message:\n${message || "(no message)"}\n`;
+
+    const recipient = process.env.RECIPIENT_EMAIL || "learntelugunowofficial@gmail.com";
 
     await getTransporter().sendMail({
       from: `"Learn Telugu Now" <${process.env.SMTP_USER}>`,
       to: recipient,
       replyTo: email,
-      subject: `New contact form message from ${name}`,
+      subject: `${meta.subjectPrefix} ${name}`,
       text,
       html,
     });
