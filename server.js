@@ -7,6 +7,7 @@ const rateLimit = require("express-rate-limit");
 const contactRouter = require("./routes/contact");
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "http://localhost:5173")

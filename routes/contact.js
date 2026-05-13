@@ -6,11 +6,12 @@ const router = express.Router();
 let cachedTransporter = null;
 const getTransporter = () => {
   if (cachedTransporter) return cachedTransporter;
-  const port = Number(process.env.SMTP_PORT) || 587;
+  const port = Number(String(process.env.SMTP_PORT || "").trim()) || 465;
   cachedTransporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.hostinger.com",
     port,
-    secure: port === 587,
+    secure: port === 465,
+    requireTLS: port === 587,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASSWORD,
